@@ -1,0 +1,163 @@
+name: Build and Push Docker image to AWS ECR
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 # Necessary to fetch all tags and history
+
+################################################################
+###               SONAR CLOUD SCAN                           ###
+###   Drops the build if any bugs or vulnerabilities found.  ###
+###            Using the default quality gate.               ###
+###        Connected to my personal Sonar Cloud account      ###
+################################################################
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Setup Git
+      run: |
+        git config --global user.name 'github-actions'
+        git config --global user.email 'github-actions@github.com'
+
+################################################################
+###               DETERMINE NEXT VERSION                     ###
+###   Used for creating new releases and image tags          ###
+################################################################
+
+    - name: Determine Next Version
+      id: next_version
+      run: |
+        # Fetch all tags
+        git fetch --tags
+        
+        # Get the latest tag, assume semver, and sort.
+        LATEST_TAG=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+        
+        # If there's no tag yet, start with v0.0.0. Used for new repos
+        if [ -z "$LATEST_TAG" ]; then
+          LATEST_TAG="v0.0.0"
+        fi
+        
+        # Increment the patch version
+        NEXT_TAG=$(echo $LATEST_TAG | awk -F. '{print $1"."$2"."$3+1}')
+        
+        # Output the next version
+        echo "::set-output name=tag::$NEXT_TAG"
+        echo "Next version: $NEXT_TAG"
+
+################################################################
+###                     CREATE RELEASE                       ###
+###  Creating release with the tag from the previous step    ###
+################################################################
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      with:
+        tag_name: ${{ steps.next_version.outputs.tag }}
+        release_name: Release ${{ steps.next_version.outputs.tag }}
+        draft: false
+        prerelease: false
+
+################################################################
+###                  BUILD DOCKER IMAGE                      ###
+###         Build Docker image from the Dockefile            ###
+################################################################
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-west-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build Docker image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: counter-service-exercise
+        IMAGE_TAG: ${{ steps.next_version.outputs.tag }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        echo "IMAGE_NAME=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+###########################################################
+###  Docker image Snyk scan | If fails, drop the action ###
+###       Connected to my personal Snyk account         ###
+###     The code owner receives e-mail notification     ###
+### Possible to configure Slack notification if needed  ###
+###########################################################               
+               
+    - name: Run Snyk to check Docker image for vulnerabilities
+      uses: snyk/actions/docker@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+         image: ${{ env.IMAGE_NAME }}
+         args: --severity-threshold=high --policy-path=.snyk
+      continue-on-error: false
+
+###########################################################
+###         PUSH IMAGE TO ECR AND DEPLOY TO EC2         ###
+###     Tag Docker image as "latest" and push to ECR    ###
+###               Deploy to EC2 using SSH               ###
+########################################################### 
+
+    - name: Push Docker image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: counter-service-exercise
+        IMAGE_TAG: ${{ steps.next_version.outputs.tag }}
+      run: |
+        # Tag the image as latest
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        # Push the specific version tag
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        # Push the latest tag
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Deploy to EC2
+      env:
+        EC2_PEM_KEY: ${{ secrets.EC2_PEM_KEY }}
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USER: ${{ secrets.EC2_USER }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: counter-service-exercise
+        IMAGE_TAG: ${{ steps.next_version.outputs.tag }}
+      run: |
+        # Save PEM key to file and set permissions
+        echo "$EC2_PEM_KEY" > ec2.pem
+        chmod 400 ec2.pem
+
+        # SSH, SCP and Docker login command
+        SSH_COMMAND="ssh -i ec2.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST"
+        SCP_COMMAND="scp -i ec2.pem -o StrictHostKeyChecking=no"
+        DOCKER_LOGIN_CMD="aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"
+
+        # Copy docker-compose.yml to EC2 server
+        $SCP_COMMAND docker-compose.yml $EC2_USER@$EC2_HOST:/home/centos/docker/
+        
+        # Pull and run the Docker container on EC2
+        #$SSH_COMMAND "docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG && docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest && docker compose up -d --force-recreate"
+        $SSH_COMMAND "cd /home/centos/docker/ && docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG && docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest && docker compose -f docker-compose.yml up -d --force-recreate"
+        # Cleanup PEM key
+        rm -f ec2.pem
