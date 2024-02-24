@@ -1,4 +1,4 @@
-version: '2.4'
+version: '2.4'  # The last version of Docker Compose file format that directly supports mem_limit and cpus
 services:
   counter-service:
     container_name: counter-service-exercise
