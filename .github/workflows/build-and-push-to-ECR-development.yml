@@ -151,13 +151,15 @@ jobs:
         # SSH, SCP and Docker login command
         SSH_COMMAND="ssh -i ec2.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST"
         SCP_COMMAND="scp -i ec2.pem -o StrictHostKeyChecking=no"
-        DOCKER_LOGIN_CMD="aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"
+        #DOCKER_LOGIN_CMD="aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"
 
+        #Login to Docker registry
+        $SSH_COMMAND "aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"
+        
         # Copy docker-compose.yml to EC2 server
         $SCP_COMMAND docker-compose.yml $EC2_USER@$EC2_HOST:/home/centos/docker/
         
         # Pull and run the Docker container on EC2
-        #$SSH_COMMAND "docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG && docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest && docker compose up -d --force-recreate"
         $SSH_COMMAND "cd /home/centos/docker/ && docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG && docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest && docker compose -f docker-compose.yml up -d --force-recreate"
         # Cleanup PEM key
         rm -f ec2.pem
