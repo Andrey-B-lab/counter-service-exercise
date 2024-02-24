@@ -148,10 +148,9 @@ jobs:
         echo "$EC2_PEM_KEY" > ec2.pem
         chmod 400 ec2.pem
 
-        # SSH, SCP and Docker login command
+        # SSH, SCP commands
         SSH_COMMAND="ssh -i ec2.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST"
         SCP_COMMAND="scp -i ec2.pem -o StrictHostKeyChecking=no"
-        #DOCKER_LOGIN_CMD="aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"
 
         #Login to Docker registry
         $SSH_COMMAND "aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"
