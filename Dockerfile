@@ -39,6 +39,8 @@ USER appuser
 COPY counter-service.py .
 
 # Expose the port that the application listens on.
+# In most Unix-like operating systems, binding to ports below 1024 requires elevated privileges.
+# This application runs on Docker as an appuser, which is restricted to binding to ports below 1024.
 EXPOSE 8080
 
 # Run the application.Logs enabled to see the output logs
