@@ -103,7 +103,7 @@ jobs:
 ###########################################################
 ###  Docker image Snyk scan | If fails, drop the action ###
 ###       Connected to my personal Snyk account         ###
-###     The code owner receives e-mail notification     ###
+###     The code owner receives an email notification   ###
 ### Possible to configure Slack notification if needed  ###
 ###########################################################               
                

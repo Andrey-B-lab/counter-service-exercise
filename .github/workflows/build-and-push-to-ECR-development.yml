@@ -17,7 +17,7 @@ jobs:
 
 ################################################################
 ###               SONAR CLOUD SCAN                           ###
-###   Drops the build if any bugs or vulnerabilities found.  ###
+### Drops the build if any bugs or vulnerabilities are found.###
 ###            Using the default quality gate.               ###
 ###        Connected to my personal Sonar Cloud account      ###
 ################################################################
@@ -25,7 +25,7 @@ jobs:
     - name: SonarCloud Scan
       uses: SonarSource/sonarcloud-github-action@master
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     - name: Setup Git
@@ -91,10 +91,17 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
+    - name: Extract repository name
+      id: repo-name
+      run: |
+        REPO_NAME="${GITHUB_REPOSITORY##*/}"
+        echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+        echo "::set-output name=repo_name::$REPO_NAME"
+
     - name: Build Docker image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: counter-service-exercise
+        ECR_REPOSITORY: ${{ env.REPO_NAME }}
         IMAGE_TAG: ${{ steps.next_version.outputs.tag }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -103,7 +110,7 @@ jobs:
 ###########################################################
 ###  Docker image Snyk scan | If fails, drop the action ###
 ###       Connected to my personal Snyk account         ###
-###     The code owner receives e-mail notification     ###
+###     The code owner receives an email notification   ###
 ### Possible to configure Slack notification if needed  ###
 ###########################################################               
                
@@ -159,6 +166,7 @@ jobs:
         $SCP_COMMAND docker-compose.yml $EC2_USER@$EC2_HOST:/home/centos/docker/
         
         # Pull and run the Docker container on EC2
-        $SSH_COMMAND "cd /home/centos/docker/ && docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG && docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest && docker compose -f docker-compose.yml up -d --force-recreate"
+        $SSH_COMMAND "cd /home/centos/docker/ && docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG && docker compose -f docker-compose.yml up -d --force-recreate"
+        
         # Cleanup PEM key
         rm -f ec2.pem
