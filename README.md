@@ -1,7 +1,7 @@
 # counter-service-exercise
 The repo for the counter service Python app. Home exercise.
 --------------------------------------------------------------------
-
+Detailed pipeline overview - https://andreybyhalenko.atlassian.net/wiki/external/Yzc2ODIwY2QwMmI3NDVmZjljNTNmNDQxNjY1ZThmZGY
 ---------------------------------------------------------------------
 ### Building and running your application
 
