@@ -1,7 +1,10 @@
 # counter-service-exercise
 The repo for the counter service Python app. Home exercise.
+Python service called "counter-service."
+It maintains a web page with a counter for the number of POST requests it has served and return it for every GET request it gets.
 --------------------------------------------------------------------
-Detailed pipeline overview - https://andreybyhalenko.atlassian.net/wiki/external/Yzc2ODIwY2QwMmI3NDVmZjljNTNmNDQxNjY1ZThmZGY
+Detailed pipeline overview:
+https://andreybyhalenko.atlassian.net/wiki/external/Yzc2ODIwY2QwMmI3NDVmZjljNTNmNDQxNjY1ZThmZGY
 ---------------------------------------------------------------------
 ### Building and running your application
 
