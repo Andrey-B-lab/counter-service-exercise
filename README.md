@@ -6,8 +6,8 @@ Python service called "counter-service."
 It maintains a web page with a counter for the number of POST requests it has served and return it for every GET request it gets.
 
 --------------------------------------------------------------------
-Detailed pipeline overview:
-https://andreybyhalenko.atlassian.net/wiki/external/Yzc2ODIwY2QwMmI3NDVmZjljNTNmNDQxNjY1ZThmZGY
+Detailed pipeline overview here: [Medium](https://medium.com/devops-technical-notes-and-manuals/devops-example-project-for-your-resume-198e34d874b4?source=friends_link&sk=235864c3d1599f2578b4ca384733810e).
+
 ---------------------------------------------------------------------
 ### Building and running your application
 
